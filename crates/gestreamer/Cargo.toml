@@ -1,0 +1,14 @@
+[package]
+name = "gestreamer"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0"
+
+[dependencies]
+actix-web = "4"
+dbus = { version = "0.9", features = ["futures"] }
+dbus-tokio = "0"
+gstreamer = "0.25"
+gstreamer-app = "0"
+tokio = "1"
+tokio-stream = { version = "0.1", features = ["sync"] }

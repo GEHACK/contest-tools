@@ -1,0 +1,60 @@
+<node>
+  <interface name="org.freedesktop.DBus.Properties">
+    <method name="Get">
+      <arg type="s" name="interface_name" direction="in"/>
+      <arg type="s" name="property_name" direction="in"/>
+      <arg type="v" name="value" direction="out"/>
+    </method>
+    <method name="GetAll">
+      <arg type="s" name="interface_name" direction="in"/>
+      <arg type="a{sv}" name="properties" direction="out"/>
+    </method>
+    <method name="Set">
+      <arg type="s" name="interface_name" direction="in"/>
+      <arg type="s" name="property_name" direction="in"/>
+      <arg type="v" name="value" direction="in"/>
+    </method>
+    <signal name="PropertiesChanged">
+      <arg type="s" name="interface_name"/>
+      <arg type="a{sv}" name="changed_properties"/>
+      <arg type="as" name="invalidated_properties"/>
+    </signal>
+  </interface>
+  <interface name="org.freedesktop.DBus.Introspectable">
+    <method name="Introspect">
+      <arg type="s" name="xml_data" direction="out"/>
+    </method>
+  </interface>
+  <interface name="org.freedesktop.DBus.Peer">
+    <method name="Ping"/>
+    <method name="GetMachineId">
+      <arg type="s" name="machine_uuid" direction="out"/>
+    </method>
+  </interface>
+  <interface name="org.gnome.Mutter.ScreenCast.Session">
+    <method name="Start"/>
+    <method name="Stop"/>
+    <method name="RecordMonitor">
+      <arg type="s" name="connector" direction="in"/>
+      <arg type="a{sv}" name="properties" direction="in"/>
+      <arg type="o" name="stream_path" direction="out"/>
+    </method>
+    <method name="RecordWindow">
+      <arg type="a{sv}" name="properties" direction="in"/>
+      <arg type="o" name="stream_path" direction="out"/>
+    </method>
+    <method name="RecordArea">
+      <arg type="i" name="x" direction="in"/>
+      <arg type="i" name="y" direction="in"/>
+      <arg type="i" name="width" direction="in"/>
+      <arg type="i" name="height" direction="in"/>
+      <arg type="a{sv}" name="properties" direction="in"/>
+      <arg type="o" name="stream_path" direction="out"/>
+    </method>
+    <method name="RecordVirtual">
+      <arg type="a{sv}" name="properties" direction="in"/>
+      <arg type="o" name="stream_path" direction="out"/>
+    </method>
+    <signal name="Closed"/>
+  </interface>
+</node>
