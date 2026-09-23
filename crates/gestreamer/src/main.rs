@@ -5,7 +5,7 @@ use actix_web::{
     web::{self, Bytes, Data},
 };
 use clap::Parser;
-use gstreamer::{Pipeline, Sample, glib::object::Cast, prelude::*};
+use gstreamer::{Pipeline, Sample, SystemClock, glib::object::Cast, prelude::*};
 use gstreamer_app::AppSink;
 use tokio_stream::wrappers::BroadcastStream;
 
@@ -69,6 +69,24 @@ async fn start_screencast(pipeline_distributor: Arc<PipelineDistributor>, encode
     }
 }
 
+async fn start_webcam(
+    pipeline_distributor: Arc<PipelineDistributor>,
+    encoder: String,
+    webcam_device: String,
+) {
+    let src: String = format!("v4l2src device={} ! decodebin", webcam_device);
+    match create_pipeline(Arc::clone(&pipeline_distributor), &src, &encoder, true) {
+        Ok(()) => {
+            let mut is_running = pipeline_distributor
+                .is_running
+                .write()
+                .expect("Lock poisoning occurred");
+            *is_running = true;
+        }
+        Err(e) => eprintln!("Failed to start gstreamer pipeline for webcam: {}", e),
+    }
+}
+
 fn create_pipeline(
     pipeline_distributor: Arc<PipelineDistributor>,
     src: &str,
@@ -128,6 +146,12 @@ mux."
             .build(),
     );
 
+    if audio {
+        // Force a pipeline clock to prevent clock issues between video and audio clocks
+        pipeline.use_clock(Some(&SystemClock::obtain()));
+        pipeline.set_start_time(None);
+    }
+
     pipeline.set_state(gstreamer::State::Playing);
     return Ok(());
 }
@@ -150,9 +174,28 @@ async fn get_screencast(state: web::Data<Arc<AppState>>) -> HttpResponse {
     return HttpResponse::ServiceUnavailable().body("Screencast is not available");
 }
 
+#[get("/webcam.ts")]
+async fn get_webcam(state: web::Data<Arc<AppState>>) -> HttpResponse {
+    if *state
+        .webcam_pipeline
+        .is_running
+        .read()
+        .expect("Lock poisoning occurred")
+    {
+        let stream: BroadcastStream<Bytes> = state.webcam_pipeline.create_stream();
+        return HttpResponse::Ok()
+            .content_type("video/mp2t")
+            .keep_alive()
+            .append_header(("Cache-Control", "no-cache"))
+            .streaming(stream);
+    }
+    return HttpResponse::ServiceUnavailable().body("Screencast is not available");
+}
+
 #[derive(Clone)]
 struct AppState {
     screencast_pipeline: Arc<PipelineDistributor>,
+    webcam_pipeline: Arc<PipelineDistributor>,
 }
 
 #[actix_web::main]
@@ -169,8 +212,18 @@ async fn main() -> std::io::Result<()> {
         ));
     }
 
+    let webcam_pipeline: Arc<PipelineDistributor> = Arc::new(*PipelineDistributor::new());
+    if let Some(device) = &args.webcam {
+        tokio::spawn(start_webcam(
+            Arc::clone(&webcam_pipeline),
+            args.encoder.clone(),
+            device.clone(),
+        ));
+    }
+
     let state: Arc<AppState> = Arc::new(AppState {
         screencast_pipeline,
+        webcam_pipeline,
     });
 
     HttpServer::new(move || {
@@ -178,6 +231,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(Data::new(Arc::clone(&state)))
             .service(hello)
             .service(get_screencast)
+            .service(get_webcam)
     })
     .bind((args.bind_address, args.port))?
     .run()
