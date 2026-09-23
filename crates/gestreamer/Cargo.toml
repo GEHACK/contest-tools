@@ -5,7 +5,9 @@ edition = "2024"
 license = "AGPL-3.0"
 
 [dependencies]
-actix-web = "4"
+actix-web = "4.6.4"
+clap = { version = "4", features = ["derive"] }
+clap_derive = "4.6.4"
 dbus = { version = "0.9", features = ["futures"] }
 dbus-tokio = "0"
 gstreamer = "0.25"

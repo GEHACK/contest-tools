@@ -4,6 +4,7 @@ use actix_web::{
     App, HttpResponse, HttpServer, Responder, get,
     web::{self, Bytes, Data},
 };
+use clap::Parser;
 use gstreamer::{
     Pipeline, Sample,
     glib::{Error, object::Cast},
@@ -12,10 +13,12 @@ use gstreamer::{
 use gstreamer_app::AppSink;
 use tokio_stream::wrappers::BroadcastStream;
 
-use crate::{dbus_client::DBus, pipeline_distributor::PipelineDistributor, screencast::Screencast};
+use crate::{
+    args::Args, dbus_client::DBus, pipeline_distributor::PipelineDistributor,
+    screencast::Screencast,
+};
 
-const ENCODER: &'static str = "x264enc key-int-max=12 ! h264parse";
-
+mod args;
 mod dbus_client;
 mod pipeline_distributor;
 mod screencast;
@@ -51,14 +54,14 @@ async fn ensure_screencast(dbus: &DBus) -> Screencast {
     }
 }
 
-async fn start_screencast() -> Result<Arc<PipelineDistributor>, ()> {
+async fn start_screencast(encoder: &str) -> Result<Arc<PipelineDistributor>, ()> {
     let dbus: DBus = ensure_dbus().await;
     let screencast: Screencast = ensure_screencast(&dbus).await;
     let src: String = format!(
         "pipewiresrc on-disconnect=eos path={} keepalive-time=100",
         screencast.pipewire_node_id
     );
-    return create_pipeline(&src, ENCODER, false).map_err(|err| {
+    return create_pipeline(&src, encoder, false).map_err(|err| {
         eprintln!("Failed to start gstreamer pipeline for screencast: {}", err);
     });
 }
@@ -141,15 +144,17 @@ async fn get_screencast(state: web::Data<Arc<PipelineDistributor>>) -> HttpRespo
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let args = Args::parse();
+
     gstreamer::init().expect("Unable to initialize gstreamer");
-    let distributor = start_screencast().await.unwrap();
+    let distributor = start_screencast(&args.encoder).await.unwrap();
     HttpServer::new(move || {
         App::new()
             .app_data(Data::new(Arc::clone(&distributor)))
             .service(hello)
             .service(get_screencast)
     })
-    .bind(("0.0.0.0", 8080))?
+    .bind((args.bind_address, args.port))?
     .run()
     .await
 }
