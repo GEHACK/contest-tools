@@ -1,0 +1,100 @@
+<node>
+  <interface name="org.freedesktop.DBus.Properties">
+    <method name="Get">
+      <arg type="s" name="interface_name" direction="in"/>
+      <arg type="s" name="property_name" direction="in"/>
+      <arg type="v" name="value" direction="out"/>
+    </method>
+    <method name="GetAll">
+      <arg type="s" name="interface_name" direction="in"/>
+      <arg type="a{sv}" name="properties" direction="out"/>
+    </method>
+    <method name="Set">
+      <arg type="s" name="interface_name" direction="in"/>
+      <arg type="s" name="property_name" direction="in"/>
+      <arg type="v" name="value" direction="in"/>
+    </method>
+    <signal name="PropertiesChanged">
+      <arg type="s" name="interface_name"/>
+      <arg type="a{sv}" name="changed_properties"/>
+      <arg type="as" name="invalidated_properties"/>
+    </signal>
+  </interface>
+  <interface name="org.freedesktop.DBus.Introspectable">
+    <method name="Introspect">
+      <arg type="s" name="xml_data" direction="out"/>
+    </method>
+  </interface>
+  <interface name="org.freedesktop.DBus.Peer">
+    <method name="Ping"/>
+    <method name="GetMachineId">
+      <arg type="s" name="machine_uuid" direction="out"/>
+    </method>
+  </interface>
+  <interface name="org.gnome.Mutter.DisplayConfig">
+    <method name="GetResources">
+      <arg type="u" name="serial" direction="out"/>
+      <arg type="a(uxiiiiiuaua{sv})" name="crtcs" direction="out"/>
+      <arg type="a(uxiausauaua{sv})" name="outputs" direction="out"/>
+      <arg type="a(uxuudu)" name="modes" direction="out"/>
+      <arg type="i" name="max_screen_width" direction="out"/>
+      <arg type="i" name="max_screen_height" direction="out"/>
+    </method>
+    <method name="ApplyConfiguration">
+      <arg type="u" name="serial" direction="in"/>
+      <arg type="b" name="persistent" direction="in"/>
+      <arg type="a(uiiiuaua{sv})" name="crtcs" direction="in"/>
+      <arg type="a(ua{sv})" name="outputs" direction="in"/>
+    </method>
+    <method name="ChangeBacklight">
+      <annotation name="org.freedesktop.DBus.Deprecated" value="true"/>
+      <arg type="u" name="serial" direction="in"/>
+      <arg type="u" name="output" direction="in"/>
+      <arg type="i" name="value" direction="in"/>
+      <arg type="i" name="new_value" direction="out"/>
+    </method>
+    <method name="SetBacklight">
+      <arg type="u" name="serial" direction="in"/>
+      <arg type="s" name="connector" direction="in"/>
+      <arg type="i" name="value" direction="in"/>
+    </method>
+    <method name="GetCrtcGamma">
+      <arg type="u" name="serial" direction="in"/>
+      <arg type="u" name="crtc" direction="in"/>
+      <arg type="aq" name="red" direction="out"/>
+      <arg type="aq" name="green" direction="out"/>
+      <arg type="aq" name="blue" direction="out"/>
+    </method>
+    <method name="SetCrtcGamma">
+      <arg type="u" name="serial" direction="in"/>
+      <arg type="u" name="crtc" direction="in"/>
+      <arg type="aq" name="red" direction="in"/>
+      <arg type="aq" name="green" direction="in"/>
+      <arg type="aq" name="blue" direction="in"/>
+    </method>
+    <method name="GetCurrentState">
+      <arg type="u" name="serial" direction="out"/>
+      <arg type="a((ssss)a(siiddada{sv})a{sv})" name="monitors" direction="out"/>
+      <arg type="a(iiduba(ssss)a{sv})" name="logical_monitors" direction="out"/>
+      <arg type="a{sv}" name="properties" direction="out"/>
+    </method>
+    <method name="ApplyMonitorsConfig">
+      <arg type="u" name="serial" direction="in"/>
+      <arg type="u" name="method" direction="in"/>
+      <arg type="a(iiduba(ssa{sv}))" name="logical_monitors" direction="in"/>
+      <arg type="a{sv}" name="properties" direction="in"/>
+    </method>
+    <method name="SetOutputCTM">
+      <arg type="u" name="serial" direction="in"/>
+      <arg type="u" name="output" direction="in"/>
+      <arg type="(ttttttttt)" name="ctm" direction="in"/>
+    </method>
+    <signal name="MonitorsChanged"/>
+    <property type="(uaa{sv})" name="Backlight" access="read"/>
+    <property type="i" name="PowerSaveMode" access="readwrite"/>
+    <property type="b" name="PanelOrientationManaged" access="read"/>
+    <property type="b" name="ApplyMonitorsConfigAllowed" access="read"/>
+    <property type="b" name="NightLightSupported" access="read"/>
+    <property type="b" name="HasExternalMonitor" access="read"/>
+  </interface>
+</node>
