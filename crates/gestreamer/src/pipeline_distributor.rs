@@ -1,4 +1,4 @@
-use std::mem::MaybeUninit;
+use std::{mem::MaybeUninit, sync::RwLock};
 
 use actix_web::web::Bytes;
 use gstreamer::Sample;
@@ -14,12 +14,16 @@ pub type MpegTsBuffer = Bytes;
 
 pub struct PipelineDistributor {
     sender: Sender<MpegTsBuffer>,
+    pub is_running: RwLock<bool>,
 }
 
 impl PipelineDistributor {
     pub fn new() -> Box<PipelineDistributor> {
         let (tx, _) = broadcast::channel::<MpegTsBuffer>(CHANNEL_SIZE);
-        let pd = Box::new(PipelineDistributor { sender: tx });
+        let pd = Box::new(PipelineDistributor {
+            sender: tx,
+            is_running: RwLock::new(false)
+        });
         return pd;
     }
 
