@@ -1,6 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
-use dbus::{Path, nonblock::{Proxy, SyncConnection}};
+use dbus::{
+    Path,
+    nonblock::{Proxy, SyncConnection},
+};
 use dbus_tokio::connection;
 use tokio::task::JoinHandle;
 
@@ -47,7 +50,10 @@ impl DBus {
         self.get_screencast_proxy_with_path(SCREENCAST_PATH.into())
     }
 
-    pub fn get_screencast_proxy_with_path<'a>(&self, path: Path<'a>) -> Proxy<'a, Arc<SyncConnection>> {
+    pub fn get_screencast_proxy_with_path<'a>(
+        &self,
+        path: Path<'a>,
+    ) -> Proxy<'a, Arc<SyncConnection>> {
         Proxy::new(
             SCREENCAST_DEST,
             path,

@@ -22,7 +22,7 @@ impl PipelineDistributor {
         let (tx, _) = broadcast::channel::<MpegTsBuffer>(CHANNEL_SIZE);
         let pd = Box::new(PipelineDistributor {
             sender: tx,
-            is_running: RwLock::new(false)
+            is_running: RwLock::new(false),
         });
         return pd;
     }
@@ -48,10 +48,10 @@ impl PipelineDistributor {
                     MPEGTS_BUFFER_SIZE,
                 );
                 if copied < MPEGTS_BUFFER_SIZE {
-                    println!(
-                        "Copied only {} bytes, zeroing {} bytes",
+                    tracing::warn!(
                         copied,
-                        MPEGTS_BUFFER_SIZE - copied
+                        zeroing = MPEGTS_BUFFER_SIZE - copied,
+                        "copied a partial sample buffer"
                     );
                     // Safety: initialize the remaining memory before it is read.
                     copy[copied..MPEGTS_BUFFER_SIZE].fill(0);
@@ -62,7 +62,7 @@ impl PipelineDistributor {
             // Ignore no receiver errors.
             let _ = self.sender.send(bytes);
         } else {
-            eprintln!("Failed to get sample buffer");
+            tracing::error!("failed to get sample buffer");
         }
     }
 }

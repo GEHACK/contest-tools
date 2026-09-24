@@ -36,7 +36,17 @@
           packages = [
             (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml)
             pkgs.cargo-nextest
+            pkgs.pkg-config
           ];
+          buildInputs = [
+            pkgs.dbus
+            pkgs.gst_all_1.gstreamer
+            pkgs.gst_all_1.gst-plugins-base
+            pkgs.gst_all_1.gst-plugins-good
+            pkgs.gst_all_1.gst-plugins-bad
+            pkgs.gst_all_1.gst-plugins-ugly
+          ]
+          ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.pipewire ];
         };
       });
     };

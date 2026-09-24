@@ -12,5 +12,7 @@ dbus = { version = "0.9", features = ["futures"] }
 dbus-tokio = "0"
 gstreamer = "0.25"
 gstreamer-app = "0"
+shared.workspace = true
 tokio = "1"
 tokio-stream = { version = "0.1", features = ["sync"] }
+tracing = "0.1.44"

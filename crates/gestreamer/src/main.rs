@@ -7,6 +7,7 @@ use actix_web::{
 use clap::Parser;
 use gstreamer::{Pipeline, Sample, SystemClock, glib::object::Cast, prelude::*};
 use gstreamer_app::AppSink;
+use shared::setup_logging;
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::{
@@ -25,11 +26,11 @@ async fn hello() -> impl Responder {
 }
 
 async fn ensure_dbus() -> DBus {
-    println!("Connecting to D-Bus...");
+    tracing::info!("connecting to D-Bus");
     loop {
         let result = DBus::connect().await;
         if let Ok(dbus) = result {
-            println!("Connected to D-Bus");
+            tracing::info!("connected to D-Bus");
             return dbus;
         }
 
@@ -38,11 +39,11 @@ async fn ensure_dbus() -> DBus {
 }
 
 async fn ensure_screencast(dbus: &DBus) -> Screencast {
-    println!("Starting the screencast...");
+    tracing::info!("starting the screencast");
     loop {
         let result = Screencast::start(&dbus).await;
         if let Ok(screencast) = result {
-            println!("Started the screencast");
+            tracing::info!("started the screencast");
             return screencast;
         }
 
@@ -65,7 +66,7 @@ async fn start_screencast(pipeline_distributor: Arc<PipelineDistributor>, encode
                 .expect("Lock poisoning occurred");
             *is_running = true;
         }
-        Err(e) => eprintln!("Failed to start gstreamer pipeline for screencast: {}", e),
+        Err(e) => tracing::error!(error = %e, "failed to start gstreamer pipeline for screencast"),
     }
 }
 
@@ -83,7 +84,7 @@ async fn start_webcam(
                 .expect("Lock poisoning occurred");
             *is_running = true;
         }
-        Err(e) => eprintln!("Failed to start gstreamer pipeline for webcam: {}", e),
+        Err(e) => tracing::error!(error = %e, "failed to start gstreamer pipeline for webcam"),
     }
 }
 
@@ -132,7 +133,7 @@ mux."
 
     let f = move |sink: &AppSink| {
         let sample: Sample = sink.pull_sample().map_err(|err| {
-            eprintln!("Failed to pull sample data: {}", err.message);
+            tracing::error!(error = %err.message, "failed to pull sample data");
             return gstreamer::FlowError::Error;
         })?;
         pipeline_distributor.write_sample(&sample);
@@ -200,6 +201,7 @@ struct AppState {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    setup_logging!("info");
     let args = Args::parse();
 
     gstreamer::init().expect("Unable to initialize gstreamer");

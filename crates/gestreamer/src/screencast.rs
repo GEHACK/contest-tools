@@ -46,7 +46,7 @@ pub async fn get_primary_monitor(bus: &DBus) -> Result<String, dbus::Error> {
 pub async fn start_screencast(bus: &DBus, connector: &str) -> Result<u32, dbus::Error> {
     let screencast_proxy: Proxy<'_, _> = bus.get_screencast_proxy();
     let session_path: Path<'_> = screencast_proxy.create_session(PropMap::new()).await?;
-    println!("Session created: {session_path:?}");
+    tracing::debug!(path = &*session_path, "screencast session created");
     let session_proxy: Proxy<'_, _> = bus.get_screencast_proxy_with_path(session_path);
 
     let mut properties: PropMap = PropMap::new();
@@ -56,7 +56,7 @@ pub async fn start_screencast(bus: &DBus, connector: &str) -> Result<u32, dbus::
     );
     properties.insert(String::from("is-recording"), Variant(Box::new(true)));
     let stream_path: Path<'_> = session_proxy.record_monitor(connector, properties).await?;
-    println!("Stream created: {stream_path:?}");
+    tracing::debug!(path = &*stream_path, "screencast stream created");
 
     let (tx, rx) = oneshot::channel();
     let rule =
@@ -78,7 +78,10 @@ pub async fn start_screencast(bus: &DBus, connector: &str) -> Result<u32, dbus::
         dbus::Error::new_custom("ScreenCast", &format!("Failed to start screencast: {err}"))
     })?;
 
-    println!("PipeWire screencast stream added: {}", pipewire_node_id);
+    tracing::info!(
+        node_id = pipewire_node_id,
+        "pipewire screencast stream added"
+    );
     return Ok(pipewire_node_id);
 }
 
