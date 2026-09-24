@@ -94,6 +94,9 @@ fn create_pipeline(
     encoder: &str,
     audio: bool,
 ) -> Result<(), Box<dyn Error>> {
+    // Prevent encode buffer starvation due to lagging broadcast consumers.
+    // This is needed due to the zero-copy implementation all the way to the HTTP clients.
+    let max_buffers = crate::pipeline_distributor::CHANNEL_SIZE + 1;
     let mut pipeline_description: String = format!(
         "
 {src} !
@@ -104,7 +107,7 @@ mpegtsmux name=mux alignment=7 !
 appsink name=ts_sink
         emit-signals=true
         sync=false
-        max-buffers=10"
+        max-buffers={max_buffers}"
     );
 
     if audio {

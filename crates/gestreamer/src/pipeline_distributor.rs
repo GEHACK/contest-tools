@@ -1,4 +1,4 @@
-use std::{mem::MaybeUninit, sync::RwLock};
+use std::sync::RwLock;
 
 use actix_web::web::Bytes;
 use gstreamer::Sample;
@@ -33,36 +33,18 @@ impl PipelineDistributor {
     }
 
     pub fn write_sample(&self, sample: &Sample) {
-        if let Some(buffer) = sample.buffer_owned() {
-            // We should be receiving buffers sized MPEGTS_BUFFER_SIZE in the app sink.
-            assert_eq!(buffer.size(), MPEGTS_BUFFER_SIZE);
-
-            let mut copy: Vec<u8> = Vec::with_capacity(MPEGTS_BUFFER_SIZE);
-            let dest: *mut MaybeUninit<u8> = copy.spare_capacity_mut().as_mut_ptr();
-            let dest = dest as gstreamer::glib::ffi::gpointer;
-            unsafe {
-                let copied: usize = gstreamer::ffi::gst_buffer_extract(
-                    buffer.as_mut_ptr(),
-                    0,
-                    dest,
-                    MPEGTS_BUFFER_SIZE,
-                );
-                if copied < MPEGTS_BUFFER_SIZE {
-                    tracing::warn!(
-                        copied,
-                        zeroing = MPEGTS_BUFFER_SIZE - copied,
-                        "copied a partial sample buffer"
-                    );
-                    // Safety: initialize the remaining memory before it is read.
-                    copy[copied..MPEGTS_BUFFER_SIZE].fill(0);
-                }
-                copy.set_len(MPEGTS_BUFFER_SIZE);
-            }
-            let bytes = Bytes::from_owner(copy);
-            // Ignore no receiver errors.
-            let _ = self.sender.send(bytes);
-        } else {
+        let Some(buffer) = sample.buffer_owned() else {
             tracing::error!("failed to get sample buffer");
+            return;
+        };
+        if buffer.size() != MPEGTS_BUFFER_SIZE {
+            tracing::error!("dropping an MPEG-TS buffer of invalid size");
+            return;
         }
+        let Ok(mapped) = buffer.into_mapped_buffer_readable() else {
+            tracing::error!("failed to map sample buffer");
+            return;
+        };
+        let _ = self.sender.send(Bytes::from_owner(mapped));
     }
 }
