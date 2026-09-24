@@ -7,9 +7,13 @@ use dbus::{
 use dbus_tokio::connection;
 use tokio::task::JoinHandle;
 
+#[rustfmt::skip]
 pub mod display_config;
+#[rustfmt::skip]
 pub mod screencast;
+#[rustfmt::skip]
 pub mod screencast_session;
+#[rustfmt::skip]
 pub mod screencast_stream;
 
 const DISPLAYCONFIG_DEST: &'static str = "org.gnome.Mutter.DisplayConfig";
