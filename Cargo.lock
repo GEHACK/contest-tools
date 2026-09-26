@@ -716,6 +716,7 @@ dependencies = [
  "gstreamer",
  "gstreamer-app",
  "shared",
+ "thiserror",
  "tokio",
  "tokio-stream",
  "tracing",
