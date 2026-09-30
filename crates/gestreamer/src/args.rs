@@ -1,6 +1,6 @@
 use std::net::IpAddr;
 
-use clap::Parser;
+use clap::{ArgAction, Parser};
 
 /// Stream screencast and webcam using MPEG-TS
 #[derive(Parser, Debug)]
@@ -10,7 +10,7 @@ pub struct Args {
     pub bind_address: IpAddr,
     #[arg(short, long, default_value_t = 8080)]
     pub port: u16,
-    #[arg(short, long, default_value_t = true)]
+    #[arg(short, long, default_value_t = true, action = ArgAction::Set)]
     pub screencast: bool,
     #[arg(short, long, default_value = None)]
     pub webcam: Option<String>,

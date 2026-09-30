@@ -1,17 +1,29 @@
-use std::{error::Error, sync::Arc};
+use std::{
+    error::Error,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 use actix_web::{
     App, HttpResponse, HttpServer, Responder, get,
     web::{self, Data},
 };
 use clap::Parser;
-use gstreamer::{Pipeline, Sample, SystemClock, glib::object::Cast, prelude::*};
+use gstreamer::{
+    ClockTime, MessageView, Object, Pipeline, Sample, State, SystemClock, glib::object::Cast,
+    prelude::*,
+};
 use gstreamer_app::AppSink;
 use shared::setup_logging;
+use tokio_util::sync::CancellationToken;
 
 use crate::{
-    args::Args, dbus_client::DBus, pipeline_distributor::PipelineDistributor,
-    screencast::Screencast,
+    args::Args,
+    dbus_client::DBus,
+    pipeline_distributor::PipelineDistributor,
+    screencast::{Screencast, ScreencastError},
 };
 
 mod args;
@@ -50,20 +62,73 @@ async fn ensure_screencast(dbus: &DBus) -> Screencast {
     }
 }
 
-async fn start_screencast(pipeline_distributor: Arc<PipelineDistributor>, encoder: String) {
+fn monitor_pipeline(name: &str, pipeline: Pipeline, token: CancellationToken) {
+    tracing::info!("Starting the monitoring of pipeline {name}...");
+    let bus = pipeline.bus().expect("Should have a bus");
+    bus.add_signal_watch();
+    while !token.is_cancelled() {
+        let Some(message) = bus.timed_pop(gstreamer::ClockTime::from_mseconds(200)) else {
+            continue;
+        };
+        match message.view() {
+            MessageView::StateChanged(state_changed)
+                if message
+                    .src()
+                    .map(|src| src == pipeline.upcast_ref::<Object>())
+                    .unwrap_or(false) =>
+            {
+                tracing::info!(
+                    "Pipeline {name} state changed: {:?} -> {:?}",
+                    state_changed.old(),
+                    state_changed.current()
+                );
+            }
+
+            MessageView::Error(error) => {
+                tracing::error!(
+                    "Pipeline {name} error from {:?}: {} ({:?})",
+                    error.src().map(|src| src.path_string()),
+                    error.error(),
+                    error.debug()
+                );
+                break;
+            }
+
+            MessageView::Eos(..) => break,
+
+            _ => {}
+        }
+    }
+    let _ = pipeline.set_state(State::Null);
+}
+
+async fn start_screencast(
+    pipeline_distributor: Arc<PipelineDistributor>,
+    encoder: String,
+    token: CancellationToken,
+) {
     let dbus: DBus = ensure_dbus().await;
     let screencast: Screencast = ensure_screencast(&dbus).await;
     let src: String = format!(
         "pipewiresrc on-disconnect=eos path={} keepalive-time=100",
         screencast.pipewire_node_id
     );
+    tracing::info!("Starting the screencast pipeline...");
     match create_pipeline(Arc::clone(&pipeline_distributor), &src, &encoder, false) {
-        Ok(()) => {
-            let mut is_running = pipeline_distributor
-                .is_running
-                .write()
-                .expect("Lock poisoning occurred");
-            *is_running = true;
+        Ok(pipeline) => {
+            {
+                let mut is_running = pipeline_distributor
+                    .is_running
+                    .write()
+                    .expect("Lock poisoning occurred");
+                *is_running = true;
+            }
+            tracing::info!("Started the screencast pipeline.");
+            // The bus loop blocks, so run it on Tokio's blocking pool.
+            let _ = tokio::task::spawn_blocking(move || {
+                monitor_pipeline("screencast", pipeline, token);
+            })
+            .await;
         }
         Err(e) => tracing::error!(error = %e, "failed to start gstreamer pipeline for screencast"),
     }
@@ -73,15 +138,25 @@ async fn start_webcam(
     pipeline_distributor: Arc<PipelineDistributor>,
     encoder: String,
     webcam_device: String,
+    token: CancellationToken,
 ) {
     let src: String = format!("v4l2src device={} ! decodebin", webcam_device);
+    tracing::info!("Starting the webcam pipeline...");
     match create_pipeline(Arc::clone(&pipeline_distributor), &src, &encoder, true) {
-        Ok(()) => {
-            let mut is_running = pipeline_distributor
-                .is_running
-                .write()
-                .expect("Lock poisoning occurred");
-            *is_running = true;
+        Ok(pipeline) => {
+            {
+                let mut is_running = pipeline_distributor
+                    .is_running
+                    .write()
+                    .expect("Lock poisoning occurred");
+                *is_running = true;
+            }
+            tracing::info!("Started the webcam pipeline.");
+            // The bus loop blocks, so run it on Tokio's blocking pool.
+            let _ = tokio::task::spawn_blocking(move || {
+                monitor_pipeline("webcam", pipeline, token);
+            })
+            .await;
         }
         Err(e) => tracing::error!(error = %e, "failed to start gstreamer pipeline for webcam"),
     }
@@ -92,7 +167,7 @@ fn create_pipeline(
     src: &str,
     encoder: &str,
     audio: bool,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<Pipeline, Box<dyn Error + Send + Sync>> {
     // Prevent encode buffer starvation due to lagging broadcast consumers.
     // This is needed due to the zero-copy implementation all the way to the HTTP clients.
     let max_buffers = crate::pipeline_distributor::CHANNEL_SIZE + 1;
@@ -156,7 +231,7 @@ mux."
     }
 
     let _ = pipeline.set_state(gstreamer::State::Playing)?;
-    return Ok(());
+    return Ok(pipeline);
 }
 
 #[get("/screencast.ts")]
@@ -176,27 +251,32 @@ struct AppState {
 }
 
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> Result<(), std::io::Error> {
     setup_logging!("info");
     let args = Args::parse();
+    let shutdown = CancellationToken::new();
 
     gstreamer::init().expect("Unable to initialize gstreamer");
 
     let screencast_pipeline: Arc<PipelineDistributor> = Arc::new(*PipelineDistributor::new());
     if args.screencast {
-        tokio::spawn(start_screencast(
-            Arc::clone(&screencast_pipeline),
-            args.encoder.clone(),
-        ));
+        let distributor = Arc::clone(&screencast_pipeline);
+        let encoder: String = args.encoder.clone();
+        let token = shutdown.child_token();
+        tokio::spawn(async move {
+            start_screencast(distributor, encoder, token).await;
+        });
     }
 
     let webcam_pipeline: Arc<PipelineDistributor> = Arc::new(*PipelineDistributor::new());
     if let Some(device) = &args.webcam {
-        tokio::spawn(start_webcam(
-            Arc::clone(&webcam_pipeline),
-            args.encoder.clone(),
-            device.clone(),
-        ));
+        let distributor = Arc::clone(&webcam_pipeline);
+        let encoder: String = args.encoder.clone();
+        let device = device.clone();
+        let token = shutdown.child_token();
+        tokio::spawn(async move {
+            start_webcam(distributor, encoder, device, token).await;
+        });
     }
 
     let state: Arc<AppState> = Arc::new(AppState {
@@ -213,5 +293,9 @@ async fn main() -> std::io::Result<()> {
     })
     .bind((args.bind_address, args.port))?
     .run()
-    .await
+    .await?;
+
+    shutdown.cancel();
+
+    return Ok(());
 }

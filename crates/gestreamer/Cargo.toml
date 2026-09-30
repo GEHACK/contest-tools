@@ -15,5 +15,6 @@ gstreamer-app = "0"
 shared.workspace = true
 thiserror = "2.0.20"
 tokio = "1"
+tokio-util = "0.7"
 tokio-stream = { version = "0.1", features = ["sync"] }
 tracing = "0.1.44"
