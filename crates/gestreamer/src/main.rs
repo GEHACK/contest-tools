@@ -2,13 +2,12 @@ use std::{error::Error, sync::Arc};
 
 use actix_web::{
     App, HttpResponse, HttpServer, Responder, get,
-    web::{self, Bytes, Data},
+    web::{self, Data},
 };
 use clap::Parser;
 use gstreamer::{Pipeline, Sample, SystemClock, glib::object::Cast, prelude::*};
 use gstreamer_app::AppSink;
 use shared::setup_logging;
-use tokio_stream::wrappers::BroadcastStream;
 
 use crate::{
     args::Args, dbus_client::DBus, pipeline_distributor::PipelineDistributor,
@@ -156,44 +155,18 @@ mux."
         pipeline.set_start_time(None);
     }
 
-    pipeline.set_state(gstreamer::State::Playing);
+    let _ = pipeline.set_state(gstreamer::State::Playing)?;
     return Ok(());
 }
 
 #[get("/screencast.ts")]
 async fn get_screencast(state: web::Data<Arc<AppState>>) -> HttpResponse {
-    if *state
-        .screencast_pipeline
-        .is_running
-        .read()
-        .expect("Lock poisoning occurred")
-    {
-        let stream: BroadcastStream<Bytes> = state.screencast_pipeline.create_stream();
-        return HttpResponse::Ok()
-            .content_type("video/mp2t")
-            .keep_alive()
-            .append_header(("Cache-Control", "no-cache"))
-            .streaming(stream);
-    }
-    return HttpResponse::ServiceUnavailable().body("Screencast is not available");
+    state.screencast_pipeline.handle_stream().await
 }
 
 #[get("/webcam.ts")]
 async fn get_webcam(state: web::Data<Arc<AppState>>) -> HttpResponse {
-    if *state
-        .webcam_pipeline
-        .is_running
-        .read()
-        .expect("Lock poisoning occurred")
-    {
-        let stream: BroadcastStream<Bytes> = state.webcam_pipeline.create_stream();
-        return HttpResponse::Ok()
-            .content_type("video/mp2t")
-            .keep_alive()
-            .append_header(("Cache-Control", "no-cache"))
-            .streaming(stream);
-    }
-    return HttpResponse::ServiceUnavailable().body("Screencast is not available");
+    state.webcam_pipeline.handle_stream().await
 }
 
 #[derive(Clone)]

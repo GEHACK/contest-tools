@@ -1,6 +1,6 @@
 use std::sync::RwLock;
 
-use actix_web::web::Bytes;
+use actix_web::{HttpResponse, web::Bytes};
 use gstreamer::Sample;
 use tokio::sync::broadcast::{self, Receiver, Sender};
 use tokio_stream::wrappers::BroadcastStream;
@@ -30,6 +30,18 @@ impl PipelineDistributor {
     pub fn create_stream(&self) -> BroadcastStream<Bytes> {
         let rx: Receiver<MpegTsBuffer> = self.sender.subscribe();
         return BroadcastStream::new(rx);
+    }
+
+    pub async fn handle_stream(&self) -> HttpResponse {
+        if *self.is_running.read().expect("Lock poisoning occurred") {
+            let stream: BroadcastStream<Bytes> = self.create_stream();
+            return HttpResponse::Ok()
+                .content_type("video/mp2t")
+                .keep_alive()
+                .append_header(("Cache-Control", "no-cache"))
+                .streaming(stream);
+        }
+        return HttpResponse::ServiceUnavailable().body("Pipeline is not available");
     }
 
     pub fn write_sample(&self, sample: &Sample) {
