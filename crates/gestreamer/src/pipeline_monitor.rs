@@ -93,6 +93,10 @@ impl<T: PipelineBuilder + Send + Sync + 'static> PipelineMonitor<T> {
                     changed.old(),
                     changed.current()
                 );
+
+                if let Some(monitor) = monitor.upgrade() {
+                    monitor.builder.set_running(changed.current() == State::Playing);
+                }
             }
 
             MessageView::Error(error) => {
@@ -162,7 +166,6 @@ impl<T: PipelineBuilder + Send + Sync + 'static> PipelineMonitor<T> {
             connection.disconnect();
         }
 
-        self.builder.set_running(true);
         Ok(())
     }
 
