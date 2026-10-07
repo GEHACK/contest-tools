@@ -81,6 +81,21 @@ async fn main() -> Result<(), std::io::Error> {
         webcam_pipeline,
     });
 
+    let glib_loop = gstreamer::glib::MainLoop::new(None, false);
+    let loop_for_thread = glib_loop.clone();
+
+    tokio::task::spawn_blocking(move || {
+        loop_for_thread.run();
+    });
+
+    // Quit the GLib loop during shutdown.
+    let loop_for_shutdown = glib_loop.clone();
+    let shutdown_token = shutdown.clone();
+    let main_loop_handle = tokio::spawn(async move {
+        shutdown_token.cancelled().await;
+        loop_for_shutdown.quit();
+    });
+
     HttpServer::new(move || {
         App::new()
             .app_data(Data::new(Arc::clone(&state)))
@@ -92,6 +107,7 @@ async fn main() -> Result<(), std::io::Error> {
     .await?;
 
     shutdown.cancel();
+    main_loop_handle.await?;
 
     return Ok(());
 }
