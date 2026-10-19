@@ -15,6 +15,7 @@ all = { level = "warn", priority = -1 }
 
 [workspace.dependencies]
 shared = { path = "crates/shared" }
+toml-file-refs = "0.1.0"
 
 [profile.release]
 lto = "thin"

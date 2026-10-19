@@ -483,6 +483,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "shared",
+ "toml-file-refs",
  "tracing",
 ]
 
@@ -1911,6 +1912,18 @@ dependencies = [
  "toml_parser",
  "toml_writer",
  "winnow",
+]
+
+[[package]]
+name = "toml-file-refs"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba3d68f1de02c096de2205190a71f91ae5577a143726787b323f9ffab86fd049"
+dependencies = [
+ "serde",
+ "serde_path_to_error",
+ "thiserror",
+ "toml",
 ]
 
 [[package]]

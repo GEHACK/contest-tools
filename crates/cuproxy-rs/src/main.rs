@@ -1,5 +1,6 @@
 use serde::Deserialize;
-use shared::{ConfigLoader, setup_logging};
+use shared::setup_logging;
+use toml_file_refs::ConfigLoader;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]

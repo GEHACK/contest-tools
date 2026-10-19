@@ -9,6 +9,7 @@ repository.workspace = true
 serde = { version = "1.0.229", features = ["derive"] }
 shared.workspace = true
 tracing = "0.1.44"
+toml-file-refs.workspace = true
 
 [lints]
 workspace = true
